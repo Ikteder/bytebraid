@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [g++, clang++]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build tests
+        run: ${{ matrix.compiler }} -std=c++20 -O2 -Wall -Wextra -Wpedantic -Wconversion -Iinclude tests/test_analyzer.cpp src/analyzer.cpp -o bytebraid_tests
+      - name: Run tests
+        run: ./bytebraid_tests
+      - name: Build CLI
+        run: ${{ matrix.compiler }} -std=c++20 -O2 -Wall -Wextra -Wpedantic -Wconversion -Iinclude src/main.cpp src/analyzer.cpp -o bytebraid
+      - name: Exercise CLI and validate JSON
+        run: |
+          python3 tools/make_demo.py
+          ./bytebraid scan demo-corpus --min-size 1024 --similarity 0.70 --json report.json
+          python3 -c 'import json; r=json.load(open("report.json")); assert r["summary"]["exact_groups"] == 1; assert r["summary"]["near_pairs"] == 2'

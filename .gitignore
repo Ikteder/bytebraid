@@ -1,0 +1,7 @@
+/build/
+/.cache/
+*.exe
+*.obj
+*.o
+demo-corpus/
+demo-report.json
