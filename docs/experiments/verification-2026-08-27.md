@@ -20,9 +20,10 @@ This record is completed from actual commands and observed output. It is not a b
 | Near evidence | demo JSON and terminal report | Both original/revision pairs scored 0.931034: 54 shared of 58 union chunks |
 | JSON parse/assertions | Python standard-library `json` assertions | Passed for exact count, near count, and reclaimable bytes |
 | Invalid CLI input | `build/bytebraid.exe scan demo-corpus --chunk-average 1000` | Rejected invalid chunk order and exited 2 |
+| Public CI | GitHub Actions run `33102229975` on commit `294643f` | Passed all build, test, demo, and JSON checks with both Ubuntu GCC and Clang |
 
 An illustrative local demo scan took 413.9 ms in one PowerShell `Measure-Command` observation. This is environment-specific smoke-test timing, not a benchmark result.
 
 ## Limitations of this verification
 
-The local run does not measure performance at large scale, compare other tools, test permission-denied paths, or test files changing during a scan. Public CI status will be recorded only after a verified GitHub Actions result exists.
+The local run does not measure performance at large scale, compare other tools, test permission-denied paths, or test files changing during a scan. The public CI run verifies portability across two Linux compilers but is not a filesystem or platform-scale benchmark.

@@ -1,5 +1,7 @@
 # ByteBraid
 
+[![CI](https://github.com/Ikteder/bytebraid/actions/workflows/ci.yml/badge.svg)](https://github.com/Ikteder/bytebraid/actions/workflows/ci.yml)
+
 ByteBraid is a read-only C++20 command-line tool that finds both exact duplicate files and likely version families. Exact matches are size-prefiltered, hashed, and then confirmed byte for byte. Near matches use deterministic content-defined chunking and report the Jaccard overlap of unique chunk fingerprints.
 
 It is designed for people auditing backup folders, exports, research artifacts, or media collections before making their own cleanup decisions. ByteBraid never deletes, moves, or modifies scanned files.
@@ -77,7 +79,7 @@ Version 0.1.0 is a tested native CLI with deterministic text and JSON reports. I
 - FNV-1a and 64-bit chunk fingerprints are fast non-cryptographic filters; adversarial collision resistance is not a goal.
 - Files changing during a scan are not snapshotted, so results for actively written trees can be inconsistent.
 - Sparse-file allocation, hard-link identity, filesystem compression, and physical block sharing are not reported yet.
-- Local verification covers Windows GCC; CI covers current Ubuntu GCC and Clang after publication.
+- Local verification covers Windows GCC; [GitHub Actions run 33102229975](https://github.com/Ikteder/bytebraid/actions/runs/33102229975) passed on Ubuntu GCC and Clang.
 
 See [the verification record](docs/experiments/verification-2026-08-27.md), [design decision](docs/decisions/0001-read-only-confirmed-matches.md), and [working notes](docs/notes/2026-08-27.md).
 
