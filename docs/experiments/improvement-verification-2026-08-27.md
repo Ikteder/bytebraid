@@ -25,6 +25,8 @@
 
 The first public 0.2 matrix run passed GCC and exposed one Clang `-Wsign-conversion` diagnostic in the pre-existing JSON escaping loop. The code now converts each `char` explicitly to `unsigned char`; the warning remains enabled and treated as an error.
 
+The replacement [GitHub Actions run 33111325555](https://github.com/Ikteder/bytebraid/actions/runs/33111325555) passed the full GCC/Clang matrix at commit `cbe93e08772cad200780bee5e9d9cd8e029f563e`.
+
 The small demo produced 234 posting records. Both backends reported 234 peak resident posting records because the corpus was too small to fill a partition buffer; disk mode is not claimed to reduce memory for small scans.
 
 ## Deterministic backend benchmark

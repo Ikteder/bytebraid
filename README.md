@@ -100,7 +100,7 @@ Version 0.2.0 is a tested native CLI with deterministic text and JSON schema 2 r
 - FNV-1a and 64-bit chunk fingerprints are fast non-cryptographic filters; adversarial collision resistance is not a goal.
 - Files changing during a scan are not snapshotted, so results for actively written trees can be inconsistent.
 - Physical identity lookup can fail on unsupported or restricted filesystems. Those paths remain visible but add no speculative reclaimable copies; sparse allocation, filesystem compression, reflinks, and physical block sharing are not reported.
-- Local verification covers Windows GCC; [GitHub Actions run 33102229975](https://github.com/Ikteder/bytebraid/actions/runs/33102229975) passed on Ubuntu GCC and Clang.
+- Local verification covers Windows GCC; [GitHub Actions run 33111325555](https://github.com/Ikteder/bytebraid/actions/runs/33111325555) passed the 0.2 matrix on Ubuntu GCC and Clang, including both index backends and JSON assertions.
 
 The best next improvement is a spillable candidate-pair accumulator with measured process RSS on a much larger synthetic tree. Disk-backed postings cannot bound memory when a highly repetitive corpus produces a very large shared-pair map.
 
