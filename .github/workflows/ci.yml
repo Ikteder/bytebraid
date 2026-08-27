@@ -13,13 +13,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build tests
-        run: ${{ matrix.compiler }} -std=c++20 -O2 -Wall -Wextra -Wpedantic -Wconversion -Iinclude tests/test_analyzer.cpp src/analyzer.cpp -o bytebraid_tests
+        run: ${{ matrix.compiler }} -std=c++20 -O2 -Wall -Wextra -Wpedantic -Wconversion -Werror -Iinclude tests/test_analyzer.cpp src/analyzer.cpp -o bytebraid_tests
       - name: Run tests
         run: ./bytebraid_tests
       - name: Build CLI
-        run: ${{ matrix.compiler }} -std=c++20 -O2 -Wall -Wextra -Wpedantic -Wconversion -Iinclude src/main.cpp src/analyzer.cpp -o bytebraid
-      - name: Exercise CLI and validate JSON
+        run: ${{ matrix.compiler }} -std=c++20 -O2 -Wall -Wextra -Wpedantic -Wconversion -Werror -Iinclude src/main.cpp src/analyzer.cpp -o bytebraid
+      - name: Exercise both indexes and validate JSON
         run: |
           python3 tools/make_demo.py
-          ./bytebraid scan demo-corpus --min-size 1024 --similarity 0.70 --json report.json
-          python3 -c 'import json; r=json.load(open("report.json")); assert r["summary"]["exact_groups"] == 1; assert r["summary"]["near_pairs"] == 2'
+          mkdir spill
+          ./bytebraid scan demo-corpus --min-size 1024 --similarity 0.70 --index-backend memory --json memory.json
+          ./bytebraid scan demo-corpus --min-size 1024 --similarity 0.70 --index-backend disk --temp-dir spill --json disk.json
+          python3 - <<'PY'
+          import json
+          memory = json.load(open("memory.json"))
+          disk = json.load(open("disk.json"))
+          summary = memory["summary"]
+          assert memory["schema_version"] == 2
+          assert summary["hard_link_groups"] == 1
+          assert summary["physical_eligible_files"] == 4
+          assert summary["exact_groups"] == 1
+          assert summary["near_pairs"] == 2
+          assert summary["reclaimable_exact_bytes"] == 512 * 1024
+          for key in ("exact_groups", "near_pairs", "reclaimable_exact_bytes", "index_posting_records"):
+              assert memory["summary"][key] == disk["summary"][key]
+          assert disk["summary"]["index_peak_resident_records"] <= disk["summary"]["index_posting_records"]
+          PY
+          test -z "$(find spill -mindepth 1 -maxdepth 1 -print -quit)"

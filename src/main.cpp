@@ -11,7 +11,7 @@
 namespace {
 
 void usage(std::ostream& out) {
-    out << "ByteBraid 0.1.0 - read-only duplicate and version-family discovery\n\n"
+    out << "ByteBraid 0.2.0 - read-only duplicate and version-family discovery\n\n"
         << "Usage:\n"
         << "  bytebraid scan <directory> [options]\n\n"
         << "Options:\n"
@@ -20,6 +20,9 @@ void usage(std::ostream& out) {
         << "  --chunk-min <bytes>      Minimum content chunk (default: 2048)\n"
         << "  --chunk-average <bytes>  Power-of-two target chunk (default: 8192)\n"
         << "  --chunk-max <bytes>      Maximum content chunk (default: 32768)\n"
+        << "  --index-backend <type>   Posting index: memory or disk (default: memory)\n"
+        << "  --index-partitions <N>   Disk hash partitions, power of two (default: 64)\n"
+        << "  --temp-dir <path>        Parent directory for temporary disk indexes\n"
         << "  --json <path|->          Write machine-readable report; '-' suppresses human output\n"
         << "  --help                   Show this help\n\n"
         << "ByteBraid never deletes or modifies scanned files.\n";
@@ -51,16 +54,35 @@ void print_human(const bytebraid::ScanResult& result, const bytebraid::ScanOptio
               << bytebraid::format_bytes(result.bytes_seen) << '\n'
               << "  analyzed:   " << result.eligible_files << " files >= "
               << bytebraid::format_bytes(options.min_size) << '\n'
+              << "  physical:   " << result.physical_eligible_files << " files / "
+              << bytebraid::format_bytes(result.physical_eligible_bytes) << '\n'
+              << "  ID unknown: " << result.identity_unavailable_files << " eligible paths\n"
+              << "  hard links: " << result.hard_link_groups.size() << " groups\n"
               << "  exact:      " << result.exact_groups.size() << " groups / "
               << bytebraid::format_bytes(result.reclaimable_exact_bytes)
-              << " safely identifiable copies\n"
+              << " conservative reclaimable bytes\n"
               << "  near:       " << result.near_pairs.size() << " pairs >= "
-              << std::fixed << std::setprecision(0) << options.similarity_threshold * 100.0 << "%\n";
+              << std::fixed << std::setprecision(0) << options.similarity_threshold * 100.0 << "%\n"
+              << "  index:      " << bytebraid::index_backend_name(options.index_backend) << " / "
+              << result.index_posting_records << " records / peak "
+              << result.index_peak_resident_records << " resident\n";
+
+    for (std::size_t index = 0; index < result.hard_link_groups.size(); ++index) {
+        const auto& group = result.hard_link_groups[index];
+        std::cout << "\nHard-link group " << index + 1 << " ("
+                  << bytebraid::format_bytes(group.file_size) << ", "
+                  << group.reported_links << " links reported by filesystem):\n";
+        for (const auto& path : group.paths) {
+            std::cout << "  @ " << path.string() << '\n';
+        }
+    }
 
     for (std::size_t index = 0; index < result.exact_groups.size(); ++index) {
         const auto& group = result.exact_groups[index];
         std::cout << "\nExact group " << index + 1 << " (" << bytebraid::format_bytes(group.file_size)
-                  << " each):\n";
+                  << " each, " << group.physical_copies << " physical copies, "
+                  << bytebraid::format_bytes(group.reclaimable_bytes) << " reclaimable"
+                  << (group.physical_identity_complete ? "" : ", identity incomplete") << "):\n";
         for (const auto& path : group.paths) {
             std::cout << "  = " << path.string() << '\n';
         }
@@ -110,6 +132,19 @@ int main(int argc, char** argv) {
                 options.chunk_average = parse_integer(require_value(index, argc, argv, option), option);
             } else if (option == "--chunk-max") {
                 options.chunk_max = parse_integer(require_value(index, argc, argv, option), option);
+            } else if (option == "--index-backend") {
+                const auto backend = require_value(index, argc, argv, option);
+                if (backend == "memory") {
+                    options.index_backend = bytebraid::IndexBackend::memory;
+                } else if (backend == "disk") {
+                    options.index_backend = bytebraid::IndexBackend::disk;
+                } else {
+                    throw std::invalid_argument("invalid index backend: " + backend);
+                }
+            } else if (option == "--index-partitions") {
+                options.index_partitions = parse_integer(require_value(index, argc, argv, option), option);
+            } else if (option == "--temp-dir") {
+                options.temp_directory = require_value(index, argc, argv, option);
             } else if (option == "--json") {
                 json_path = require_value(index, argc, argv, option);
             } else if (option == "--help") {

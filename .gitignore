@@ -3,5 +3,7 @@
 *.exe
 *.obj
 *.o
+__pycache__/
 demo-corpus/
 demo-report.json
+benchmark-results.json

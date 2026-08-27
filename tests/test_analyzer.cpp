@@ -67,10 +67,65 @@ void test_exact_and_near_detection() {
         expect(pair.shared_chunks == 3 && pair.union_chunks == 5, "chunk evidence should be explicit");
     }
     expect(result.warnings.empty(), "controlled fixture should have no warnings");
+    expect(result.physical_eligible_files == 4, "ordinary files should have distinct identities");
 
     const auto json = bytebraid::to_json(result, options);
+    expect(json.find("\"schema_version\": 2") != std::string::npos, "JSON schema should be version 2");
     expect(json.find("\"exact_groups\": 1") != std::string::npos, "JSON summary should include exact count");
     expect(json.find("\"similarity\": 0.600000") != std::string::npos, "JSON should include score");
+
+    auto disk_options = options;
+    disk_options.index_backend = bytebraid::IndexBackend::disk;
+    disk_options.index_partitions = 8;
+    disk_options.temp_directory = temp.path / "spill-parent";
+    const auto disk_result = bytebraid::analyze(temp.path, disk_options);
+    expect(disk_result.exact_groups.size() == result.exact_groups.size(),
+           "disk index must preserve exact groups");
+    expect(disk_result.near_pairs.size() == result.near_pairs.size(),
+           "disk index must preserve near pairs");
+    expect(disk_result.reclaimable_exact_bytes == result.reclaimable_exact_bytes,
+           "disk index must preserve reclaimable accounting");
+    expect(disk_result.index_posting_records == result.index_posting_records,
+           "both indexes must process the same posting records");
+    expect(disk_result.index_partitions_used > 0 &&
+           disk_result.index_peak_resident_records <= disk_result.index_posting_records,
+           "disk index must expose bounded partition evidence");
+}
+
+void test_hard_link_accounting() {
+    TempDirectory temp;
+    const std::string content(1024, 'Q');
+    const auto original = temp.path / "original.bin";
+    const auto alias = temp.path / "alias.bin";
+    const auto copy = temp.path / "copy.bin";
+    write_binary(original, content);
+    fs::create_hard_link(original, alias);
+    write_binary(copy, content);
+
+    const auto result = bytebraid::analyze(temp.path);
+    expect(result.eligible_files == 3, "three logical paths should be analyzed");
+    expect(result.physical_eligible_files == 2, "hard-linked aliases are one physical file");
+    expect(result.physical_eligible_bytes == 2048, "physical bytes should not count the alias twice");
+    expect(result.hard_link_groups.size() == 1, "one hard-link group expected");
+    expect(result.hard_link_groups[0].paths.size() == 2, "hard-link group should list both aliases");
+    expect(result.exact_groups.size() == 1, "the separate copy should form an exact group");
+    expect(result.exact_groups[0].paths.size() == 3, "exact evidence should retain all logical paths");
+    expect(result.exact_groups[0].physical_copies == 2, "exact group should count physical copies");
+    expect(result.reclaimable_exact_bytes == 1024, "only one physical copy is reclaimable");
+
+    TempDirectory links_only;
+    write_binary(links_only.path / "one.bin", content);
+    fs::create_hard_link(links_only.path / "one.bin", links_only.path / "two.bin");
+    const auto links_only_result = bytebraid::analyze(links_only.path);
+    expect(links_only_result.hard_link_groups.size() == 1, "hard-link-only group should be visible");
+    expect(links_only_result.exact_groups.empty(), "aliases alone are not duplicate physical copies");
+    expect(links_only_result.reclaimable_exact_bytes == 0, "aliases alone reclaim no file data");
+
+    const auto json = bytebraid::to_json(result, {});
+    expect(json.find("\"hard_link_groups\": 1") != std::string::npos,
+           "JSON summary should include hard-link count");
+    expect(json.find("\"physical_copies\": 2") != std::string::npos,
+           "JSON exact evidence should include physical copies");
 }
 
 void test_empty_directory() {
@@ -89,6 +144,13 @@ void test_invalid_inputs() {
     catch (const std::invalid_argument&) { bad_chunk_rejected = true; }
     expect(bad_chunk_rejected, "non-power-of-two average must be rejected");
 
+    options = bytebraid::ScanOptions{};
+    options.index_partitions = 3;
+    bool bad_partitions_rejected = false;
+    try { static_cast<void>(bytebraid::analyze(temp.path, options)); }
+    catch (const std::invalid_argument&) { bad_partitions_rejected = true; }
+    expect(bad_partitions_rejected, "non-power-of-two partition count must be rejected");
+
     bool missing_rejected = false;
     try { static_cast<void>(bytebraid::analyze(temp.path / "missing")); }
     catch (const std::invalid_argument&) { missing_rejected = true; }
@@ -100,12 +162,14 @@ void test_invalid_inputs() {
 int main() {
     try {
         test_exact_and_near_detection();
-        std::cout << "PASS exact and near detection\n";
+        std::cout << "PASS exact, near, and backend equivalence\n";
+        test_hard_link_accounting();
+        std::cout << "PASS hard-link physical accounting\n";
         test_empty_directory();
         std::cout << "PASS empty directory\n";
         test_invalid_inputs();
         std::cout << "PASS invalid inputs\n";
-        std::cout << "3/3 tests passed\n";
+        std::cout << "4/4 tests passed\n";
         return 0;
     } catch (const std::exception& exception) {
         std::cerr << "FAIL " << exception.what() << '\n';
