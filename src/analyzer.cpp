@@ -78,7 +78,8 @@ std::string path_text(const std::filesystem::path& path) {
 
 std::string json_escape(const std::string& input) {
     std::ostringstream out;
-    for (const unsigned char c : input) {
+    for (const char raw_character : input) {
+        const auto c = static_cast<unsigned char>(raw_character);
         switch (c) {
             case '"': out << "\\\""; break;
             case '\\': out << "\\\\"; break;

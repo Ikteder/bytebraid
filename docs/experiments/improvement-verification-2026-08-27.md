@@ -23,6 +23,8 @@
 | Invalid CLI inputs | Unknown backend and non-power-of-two partition count both exited 2 with specific errors |
 | Diagnostics | CLI and tests built successfully with warnings treated as errors |
 
+The first public 0.2 matrix run passed GCC and exposed one Clang `-Wsign-conversion` diagnostic in the pre-existing JSON escaping loop. The code now converts each `char` explicitly to `unsigned char`; the warning remains enabled and treated as an error.
+
 The small demo produced 234 posting records. Both backends reported 234 peak resident posting records because the corpus was too small to fill a partition buffer; disk mode is not claimed to reduce memory for small scans.
 
 ## Deterministic backend benchmark
